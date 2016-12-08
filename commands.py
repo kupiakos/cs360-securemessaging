@@ -8,7 +8,7 @@ class CommandRunner:
         func = getattr(self, 'cmd_' + command)
 
         kwargs = {
-            name: func.__annotations__.get(name, str)(strval)
-            for name, strval in zip_longest(func.__code__.co_varnames[1:], args)
+            name: func.__annotations__.get(name, bytes)(strval.encode())
+            for name, strval in zip(func.__code__.co_varnames[1:], args)
             }
         return func(**kwargs)
