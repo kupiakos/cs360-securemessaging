@@ -1,8 +1,6 @@
 import argparse
 import socket
-
 import sys
-import traceback
 
 from commands import CommandRunner
 
@@ -81,6 +79,7 @@ def main():
     parser.add_argument('-d', action='store_true', dest='debug', help='print debugging information')
     args = parser.parse_args()
     Client().run(args.port)
+
 
 if __name__ == '__main__':
     main()
