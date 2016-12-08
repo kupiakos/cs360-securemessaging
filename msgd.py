@@ -27,18 +27,22 @@ class MessagingSession(CommandRunner):
         self.writer = writer
 
     async def handle_client(self):
-        while True:
-            try:
-                line = (await self.reader.readline()).decode()
-                print(line)
-                result = await self.run_command(line)
-                self.writer.write(result)
-            except Exception as e:
-                print(traceback.format_exc())
-                self.writer.write(b'error ' + str(e).encode() + b'\n')
-            await self.writer.drain()
+        try:
+            while True:
+                try:
+                    line = (await self.reader.readline()).decode()
+                    print(line)
+                    result = await self.run_command(line)
+                    self.writer.write(result)
+                except Exception as e:
+                    print(traceback.format_exc())
+                    self.writer.write(b'error ' + str(e).encode() + b'\n')
+                await self.writer.drain()
+        except ConnectionError:
+            pass
 
     async def cmd_put(self, name: bytes, subject: bytes, length: int):
+        assert isinstance(length, int)
         message = await self.reader.readexactly(length)
         self.messages[name].append(Message(subject, message))
         return b'OK\n'
@@ -46,12 +50,12 @@ class MessagingSession(CommandRunner):
     async def cmd_list(self, name: bytes):
         messages = self.messages.get(name, [])
         data = b'list %d\n' % len(messages)
-        data += b''.join(b'%d %s\n' % (index, message.subject)
+        data += b''.join(b'%d %s\n' % (index + 1, message.subject)
                          for index, message in enumerate(messages))
         return data
 
     async def cmd_get(self, name: bytes, index: int):
-        message = self.messages[name][index]
+        message = self.messages[name][index - 1]
         return b'message %s %d\n%s' % (message.subject, len(message.message), message.message)
 
     async def cmd_reset(self):
