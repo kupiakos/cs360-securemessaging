@@ -10,19 +10,24 @@ from commands import CommandRunner
 Message = namedtuple('Message', ['subject', 'message'])
 
 
+# NOTE TO THE TA's: I asked the Professor and he said it was fine to use asyncio rather than epoll directly.
+
 def start(port=8080):
     messages = defaultdict(list)
+    keys = {}
 
     async def handle_client(reader: StreamReader, writer: StreamWriter):
-        session = MessagingSession(messages, reader, writer)
+        session = MessagingSession(messages, keys, reader, writer)
         await session.handle_client()
 
     return asyncio.start_server(handle_client, 'localhost', port)
 
 
 class MessagingSession(CommandRunner):
-    def __init__(self, messages: Dict[bytes, List[Message]], reader: StreamReader, writer: StreamWriter):
+    def __init__(self, messages: Dict[bytes, List[Message]], keys: Dict[bytes, bytes],
+                 reader: StreamReader, writer: StreamWriter):
         self.messages = messages
+        self.keys = keys
         self.reader = reader
         self.writer = writer
 
@@ -33,6 +38,8 @@ class MessagingSession(CommandRunner):
                     line = (await self.reader.readline()).decode()
                     print(line)
                     result = await self.run_command(line)
+                    if result is None:
+                        result = b'OK\n'
                     self.writer.write(result)
                 except Exception as e:
                     print(traceback.format_exc())
@@ -45,7 +52,6 @@ class MessagingSession(CommandRunner):
         assert isinstance(length, int)
         message = await self.reader.readexactly(length)
         self.messages[name].append(Message(subject, message))
-        return b'OK\n'
 
     async def cmd_list(self, name: bytes):
         messages = self.messages.get(name, [])
@@ -58,9 +64,16 @@ class MessagingSession(CommandRunner):
         message = self.messages[name][index - 1]
         return b'message %s %d\n%s' % (message.subject, len(message.message), message.message)
 
+    async def cmd_store_key(self, name: bytes, length: int):
+        key = await self.reader.readexactly(length)
+        self.keys[name] = key
+
+    async def cmd_get_key(self, name: bytes):
+        key = self.keys[name]
+        return b'key %d\n%s' % (len(key), key)
+
     async def cmd_reset(self):
         self.messages.clear()
-        return b'OK\n'
 
 
 def main():
@@ -80,6 +93,7 @@ def main():
     server.close()
     loop.run_until_complete(server.wait_closed())
     loop.close()
+
 
 if __name__ == '__main__':
     main()
