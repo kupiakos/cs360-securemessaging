@@ -9,6 +9,8 @@ from Crypto.PublicKey import RSA
 
 from commands import CommandRunner
 
+debug = False
+
 
 class Client(CommandRunner):
     connection = None
@@ -30,7 +32,8 @@ class Client(CommandRunner):
             try:
                 self.run_command(line)
             except Exception:
-                traceback.print_exc()
+                if debug:
+                    traceback.print_exc()
                 print('Error with command')
 
     def _get_key(self, user: str):
@@ -128,6 +131,8 @@ def main():
                         help='port number of the messaging server')
     parser.add_argument('-d', action='store_true', dest='debug', help='print debugging information')
     args = parser.parse_args()
+    global debug
+    debug = args.debug
     Client().run(args.port)
 
 
