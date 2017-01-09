@@ -11,6 +11,8 @@ from Crypto.PublicKey import RSA
 
 from commands import CommandRunner
 
+debug = False
+
 
 class Client(CommandRunner):
     connection = None
@@ -32,7 +34,8 @@ class Client(CommandRunner):
             try:
                 self.run_command(line)
             except Exception:
-                traceback.print_exc()
+                if debug:
+                    traceback.print_exc()
                 print('Error with command')
 
     def _get_key(self, user: str):
@@ -49,7 +52,6 @@ class Client(CommandRunner):
         if key_text is None:
             print('The user', user, 'does not exist.')
             return
-        print('key: ', key_text)
         public_key = RSA.importKey(key_text)
         print('- Type your message. End with a blank line -')
         lines = []
@@ -58,8 +60,8 @@ class Client(CommandRunner):
             if not line:
                 break
             lines.append(line)
-        message = '\n'.join(lines).encode()
-        encrypted = public_key.encrypt(message, 0)[0]
+        message_pack = user.encode() + '\n'.join(lines).encode()
+        encrypted = public_key.encrypt(message_pack, 0)[0]
         encrypted = base64.b64encode(encrypted)
         self.connection.send(b'put %s %s %d\n%s' % (
             user.encode(), subject.encode(), len(encrypted), encrypted
@@ -97,7 +99,12 @@ class Client(CommandRunner):
         if subject is None:
             return None
         encrypted = base64.b64decode(encrypted)
-        message = self.key.decrypt(encrypted).decode()
+        user_bytes = user.encode()
+        message_pack = self.key.decrypt(encrypted)
+        if message_pack[:len(user_bytes)] != user_bytes:
+            print('You cannot read this file.')
+            return None
+        message = message_pack[len(user_bytes):].decode()
         print(subject)
         print(message)
 
@@ -130,6 +137,8 @@ def main():
                         help='port number of the messaging server')
     parser.add_argument('-d', action='store_true', dest='debug', help='print debugging information')
     args = parser.parse_args()
+    global debug
+    debug = args.debug
     Client().run(args.port)
 
 
